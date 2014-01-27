@@ -2,19 +2,6 @@
 #include <Adafruit_NeoPixel.h>
 #include <SwitecX25.h>
 #include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-
-#define OLED_DC 11
-#define OLED_CS 12
-#define OLED_CLK 10
-#define OLED_MOSI 9
-#define OLED_RESET 13
-
-// Adafruit OLED display setup
-Adafruit_SSD1306 display(OLED_MOSI, OLED_CLK, OLED_DC, OLED_RESET, OLED_CS);
-long lcdInterval = 250;
-long previousMillis = 0;
 
 // Parameter 1 = number of pixels in strip
 // Parameter 2 = pin number (most are valid)
@@ -57,7 +44,6 @@ unsigned long lastPulseDurationRAW = 0;
 #define FILTER_SAMPLES 30
 unsigned long sensSmoothArray1 [FILTER_SAMPLES];
 
-
 void setup() {
 
   // calculate steps we are using for 
@@ -69,14 +55,6 @@ void setup() {
   // setup the input pin and attach interrupt
   pinMode(TACH_INPUT_PIN, INPUT);
   attachInterrupt(0, tachInputChanged, CHANGE);
-
-  // init the display
-  display.begin(SSD1306_SWITCHCAPVCC);
-  display.setTextSize(2);
-  display.setTextColor(WHITE);
-  display.clearDisplay();
-  display.println("Init...");
-  display.display();
 
   // init the LED RING
   strip.begin();
@@ -93,6 +71,7 @@ void setup() {
   tachMotor.setPosition(0);
   tachMotor.updateBlocking();
 
+  // set timing state
   lastNeedleMoveMillis = millis();
   previousChange = micros();
 }
@@ -126,6 +105,37 @@ void getEngineSpeed() {
   else {
     engineRpm = 0;
   }
+}
+
+void doesNeedleNeedToMove() {
+
+  unsigned long currentMillis = millis();
+  if(lastNeedleMoveMillis + LASTMOVEINTERVAL < currentMillis) { 
+
+    lastNeedleMoveMillis = currentMillis;
+    needlePos = engineRpm / rpmPerStep;
+    tachMotor.setPosition(needlePos);
+  }
+}
+
+void updateBacklightIfNecessary() {
+
+  if(tachMotor.currentStep > normalStepLimit && tachMotor.currentStep <= warnStepLimit) {
+    ringColor(strip.Color(255,255,51));
+  }
+  else if(tachMotor.currentStep > warnStepLimit) {
+    ringColor(strip.Color(255,0,0));
+  }
+  else {
+    ringColor(strip.Color(0,255,255));
+  }
+}
+
+void ringColor(uint32_t c) {
+  for(uint16_t i = 0; i < strip.numPixels(); i++) {
+    strip.setPixelColor(i, c);
+  }
+  strip.show();
 }
 
 unsigned long digitalSmooth(unsigned long rawIn, unsigned long *sensSmoothArray) {    
@@ -170,15 +180,6 @@ unsigned long digitalSmooth(unsigned long rawIn, unsigned long *sensSmoothArray)
   return total / k;    // divide by number of samples  
 }
 
-void displayRPMLine() {
-
-  display.clearDisplay();
-  display.setCursor(0,0);
-  display.print("RPM: ");
-  display.println(engineRpm);
-  display.display();
-}
-
 unsigned long roundDown(unsigned long numToRound, unsigned long multiple) 
 { 
  if(multiple == 0) 
@@ -191,37 +192,6 @@ unsigned long roundDown(unsigned long numToRound, unsigned long multiple)
   return numToRound;
  return numToRound - remainder;
 } 
-
-void doesNeedleNeedToMove() {
-
-  unsigned long currentMillis = millis();
-  if(lastNeedleMoveMillis + LASTMOVEINTERVAL < currentMillis) { 
-
-    lastNeedleMoveMillis = currentMillis;
-    needlePos = engineRpm / rpmPerStep;
-    tachMotor.setPosition(needlePos);
-  }
-}
-
-void updateBacklightIfNecessary() {
-
-  if(tachMotor.currentStep > normalStepLimit && tachMotor.currentStep <= warnStepLimit) {
-    ringColor(strip.Color(255,255,51));
-  }
-  else if(tachMotor.currentStep > warnStepLimit) {
-    ringColor(strip.Color(255,0,0));
-  }
-  else {
-    ringColor(strip.Color(0,255,255));
-  }
-}
-
-void ringColor(uint32_t c) {
-  for(uint16_t i = 0; i < strip.numPixels(); i++) {
-    strip.setPixelColor(i, c);
-  }
-  strip.show();
-}
 
 
 
